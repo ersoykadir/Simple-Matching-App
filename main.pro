@@ -72,7 +72,85 @@ find_possible_targets(Name,Distances,TargetList):-
 	%findall(TargetName,(glanian_distance(Name,TargetName,Distance),member(Distance,Distances),glanian(TargetName,TargetGender,_),member(TargetGender,ExpectedGenders)), Distances).
 
 % 3.7 find_weighted_targets(Name, Distances, TargetList) 15 points
+find_weighted_targets(Name, Distances, TargetList):-
+	expects(Name,ExpectedGenders,_),
+    %glanian(TargetName,TargetGender,_),member(TargetGender,ExpectedGenders),
+    %findall(Distance,(glanian_distance(Name,T,Distance),member(T,TargetList)), Distances),
+    %findall(TargetName,(glanian(TargetName,TargetGender,_),member(TargetGender,ExpectedGenders)), TargetList),
+    findall([TargetDistance,TargetName],(glanian(TargetName,TargetGender,_),member(TargetGender,ExpectedGenders),weighted_glanian_distance(Name,TargetName,TargetDistance)), T),
+   	sort(T,SortedT),
+    findall(Distance,(nth0(0,E,Distance),member(E,SortedT)), Distances),
+    findall(TargetName,(nth0(1,E,TargetName),member(E,SortedT)), TargetList).
+	%findall(TargetName,(glanian_distance(Name,TargetName,Distance),member(Distance,Distances),glanian(TargetName,TargetGender,_),member(TargetGender,ExpectedGenders)), Distances).
 
 % 3.8 find_my_best_target(Name, Distances, Activities, Cities, Targets) 20 points
+find_weighted_targets_wout_old(Name,Dists,TargetList,OldRelations):-
+	expects(Name,ExpectedGenders,_),
+	%dislikes(Name,_,_,Limits),
+	%findall(TargetName,(glanian(TargetName,TargetGender,_),(member(TargetGender,ExpectedGenders),\+member(TargetGender,OldRelations))), TargetList),
+	findall([TargetDistance,TargetName],(glanian(TargetName,TargetGender,_),member(TargetGender,ExpectedGenders),\+member(TargetGender,OldRelations),weighted_glanian_distance(Name,TargetName,TargetDistance)), T),
+   	sort(T,SortedT),
+    findall(Distance,(nth0(0,E,Distance),member(E,SortedT)), Dists),
+    findall(TargetName,(nth0(1,E,TargetName),member(E,SortedT)), TargetList).
+appropriate_cities(Name,CityName):-
+	likes(Name,LikedActivities,_),
+	dislikes(Name,_,DislikedCities,_),
+	city(CityName,_,ActList),member(A,LikedActivities),member(A,ActList),\+member(CityName,DislikedCities).
+compar([],[]):-!.
+compar([_|T1],[[]|T2]):-compar(T1,T2),!.
+compar([H1|T1],[H2|T2]):-
+    compar(T1,T2),
+    H2 = [Lmin,Lmax],
+    (   H1 >= Lmin 	) ,
+    (   H1 =< Lmax	) .
+limit_check(TargetName,Limits):-
+	glanian(TargetName,_,Features),
+	compar(Features,Limits).
+matches(DislikedActivities,TargetName):-
+	likes(TargetName,LikedActivities,_),
+	findall(M,(member(M,DislikedActivities),member(M,LikedActivities)),Matched),
+	length(Matched,Len),Len < 3.
+target_city_act(Name,TargetName,CityName,Act,TargetDistance,Dists,TargetList,Acts1,MergedCities):-
+	dislikes(Name,DislikedActivities,_,Limits),
+	member(TargetName,TargetList),limit_check(TargetName,Limits),matches(DislikedActivities,TargetName),
+	nth0(Ind,TargetList,TargetName),nth0(Ind,Dists,TargetDistance),
+	%weighted_glanian_distance(Name,TargetName,TargetDistance),
+	merge_possible_cities(Name,TargetName,Cities),
+	findall(A,possible_acts(A,Cities),Acts2),
+	(member(Act,Acts1),member(Act,Acts2)),
+
+	city(CityName,_,ActList),(member(CityName,Cities),member(CityName,MergedCities)),
+	member(Act,ActList),\+member(Act,DislikedActivities).
+%find_my_best_target(josizar,D,A,C,T).
+possible_acts(Act,Cities1):-
+	member(City,Cities1),
+	city(City,_,ActList),
+	member(Act,ActList).
+find_my_best_target(Name, Distances, Activities, Cities, Targets):-
+
+	findall(Relation,(old_relation([Name,Relation]);old_relation([Relation,Name])), OldRelations),%find old Relations
+	find_weighted_targets_wout_old(Name,Dists,TargetList,OldRelations),
+
+
+	find_possible_cities(Name,Cities1),
+
+	findall(Act,possible_acts(Act,Cities1),Acts1),
+
+	findall(CityName,appropriate_cities(Name,CityName),Cities2),
+	CitiesT = [Cities1,Cities2],
+	append(CitiesT,TempList),
+	list_to_set(TempList,MergedCities),
+
+	findall([TargetDistance,Act,CityName,TargetName],(target_city_act(Name,TargetName,CityName,Act,TargetDistance,Dists,TargetList,Acts1,MergedCities)),List),
+	sort(List,Sorted),
+	%print(List),
+	findall(D,(nth0(0,E,D),member(E,Sorted)), Distances),
+	findall(A,(nth0(1,E,A),member(E,Sorted)), Activities),
+	findall(C,(nth0(2,E,C),member(E,Sorted)), Cities),
+	findall(T,(nth0(3,E,T),member(E,Sorted)), Targets).
+	%	find cities that have LikedActivities of Name ,should not be in disliked cities
+	%	merge the two
+
+
 
 % 3.9 find_my_best_match(Name, Distances, Activities, Cities, Targets) 25 points
